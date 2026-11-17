@@ -7,7 +7,7 @@ from pathlib import Path
 from spotdl.download.downloader import DownloaderError
 from spotdl.providers.audio.base import AudioProviderError
 
-from spotify_to_yoto import download, links, matcher, settings, spotify, state, sync
+from spotify_to_yoto import download, links, matcher, settings, spotify, state, sync, youtube
 from spotify_to_yoto.yoto import push
 from spotify_to_yoto.yoto.api import YotoError
 from spotify_to_yoto.yoto.auth import AuthError
@@ -31,10 +31,27 @@ def _push(folder):
           flush=True)
 
 
+def _terminal():
+    return sys.stdin is not None and sys.stdin.isatty()
+
+
+def _ask_premium(values):
+    """Asks about YouTube Premium and saves the answer, unless it couldn't be set up (then it's asked next time)."""
+    answer = youtube.ask()
+    if answer is not None:
+        values["youtube_premium"] = answer
+        settings.save(values)
+    return answer
+
+
 def _start():
-    """Everything a sync needs before its first playlist."""
+    """Everything a sync needs before its first playlist. The first time, in a terminal, it asks about Premium."""
     download.ensure_tools()
-    spotify.connect(settings.load())
+    values = settings.load()
+    spotify.connect(values)
+    if "youtube_premium" not in values and _terminal():
+        _ask_premium(values)
+    download.use_sign_in(values.get("youtube_premium"))
 
 
 def cmd_sync(argv):
@@ -43,6 +60,9 @@ def cmd_sync(argv):
                                "Yoto. Other commands: push, fix, status, settings (add --help to any).")
     parser.add_argument("links", nargs="+", help="Spotify playlist links, or text files with one link a line")
     parser.add_argument("--push", action="store_true", help="put each playlist on Yoto straight after its download")
+    parser.add_argument("--redownload", action="store_true",
+                        help="download every song again from the same uploads, e.g. at 256 kbps after turning on "
+                             "YouTube Premium")
     parser.add_argument("--music", help="the folder that holds one folder per playlist, for this run")
     args = parser.parse_args(argv)
     music = settings.music(args.music)
@@ -59,7 +79,7 @@ def cmd_sync(argv):
     failed, done = False, []
     for url in urls:
         try:
-            result = sync.sync(url, music)
+            result = sync.sync(url, music, redownload=args.redownload)
             print(result.report + "\n", flush=True)
             if args.push:
                 _push(result.folder)
@@ -199,8 +219,24 @@ def cmd_settings(argv):
     parser.add_argument("--yoto-client-id", help="your Yoto developer app's client ID")
     parser.add_argument("--spotify-client-id", help="your own Spotify app's client ID (optional)")
     parser.add_argument("--spotify-client-secret", help="your own Spotify app's client secret (optional)")
+    premium = parser.add_mutually_exclusive_group()
+    premium.add_argument("--youtube-premium", action="store_true",
+                         help="set up YouTube Premium for 256 kbps downloads (asks which browser has your sign-in)")
+    premium.add_argument("--no-youtube-premium", action="store_true", help="turn YouTube Premium off")
     args = parser.parse_args(argv)
-    given = {k: v for k, v in vars(args).items() if v is not None}
+    if args.youtube_premium:
+        try:
+            download.ensure_tools()  # the Premium check asks YouTube for a song's streams, which needs Deno
+        except FAILURES as exc:
+            _fail(exc)
+            return 1
+        return 0 if _ask_premium(settings.load()) is not None else 1
+    if args.no_youtube_premium:
+        settings.save({**settings.load(), "youtube_premium": False})
+        print("YouTube Premium is off.")
+        return 0
+    flags = ("youtube_premium", "no_youtube_premium")
+    given = {k: v for k, v in vars(args).items() if v is not None and k not in flags}
     if given:
         if "music" in given:
             given["music"] = str(Path(given["music"]).expanduser().resolve())
@@ -212,6 +248,13 @@ def cmd_settings(argv):
     print(f"Yoto client ID:        {values.get('yoto_client_id') or '(not set)'}")
     print(f"Spotify client ID:     {values.get('spotify_client_id') or '(not set: spotDL shared keys)'}")
     print(f"Spotify client secret: {'(set)' if values.get('spotify_client_secret') else '(not set)'}")
+    premium = values.get("youtube_premium")
+    if premium:
+        browser = premium.get("keyring") or youtube.KNOWN.get(premium["browser"], premium["browser"])
+        shown = f"on, through {browser}"
+    else:
+        shown = "off" if premium is False else "not set up yet (the next sync asks)"
+    print(f"YouTube Premium:       {shown}")
     return 0
 
 

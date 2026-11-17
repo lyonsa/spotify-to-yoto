@@ -53,6 +53,14 @@ def read_album(path):
     return album[0] if album else None
 
 
+def read_kbps(path):
+    """The song's bitrate in kbps, or None if the file can't be read."""
+    try:
+        return round(MP4(path).info.bitrate / 1000)
+    except mutagen.MutagenError:
+        return None
+
+
 def read_tracks(folder):
     """The folder's numbered songs in order, and the numbers missing between them (songs that didn't download)."""
     tracks = []

@@ -6,7 +6,7 @@ from unittest import mock
 
 from spotdl.providers.audio.base import AudioProviderError
 
-from spotify_to_yoto import spotify, state, sync
+from spotify_to_yoto import download, spotify, state, sync
 from spotify_to_yoto.matcher import Match
 from spotify_to_yoto.spotify import Playlist, SongInfo
 from spotify_to_yoto.yoto import push
@@ -70,13 +70,18 @@ class SyncTest(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.albums = {}
+        self.kbps = {}
+        patcher = mock.patch.object(push, "read_kbps", side_effect=lambda path: self.kbps.get(path.name, 256))
+        patcher.start()
+        self.addCleanup(patcher.stop)
         patcher = mock.patch.object(push, "read_album", side_effect=lambda path: self.albums.get(path.name))
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def run_sync(self, songs, name="Mix", length=None):
+    def run_sync(self, songs, name="Mix", length=None, redownload=False):
         playlist = Playlist(URL, name, "https://cover", length or len(songs), songs)
-        return sync.sync(URL, self.music, fetch=lambda url: playlist, matcher=self.matcher, fetcher=FakeFetcher)
+        return sync.sync(URL, self.music, fetch=lambda url: playlist, matcher=self.matcher, fetcher=FakeFetcher,
+                         redownload=redownload)
 
     def files(self, folder):
         return sorted(p.name for p in folder.iterdir() if p.suffix == ".m4a")
@@ -249,6 +254,27 @@ class SyncTest(unittest.TestCase):
     def test_search_error_reports_missing(self):
         self.matcher.find = mock.Mock(side_effect=Exception("YouTube Music said no"))
         self.assertIn("01 Missing", self.run_sync([song(1)]).report)
+
+    def test_redownload_gets_every_song_again_with_the_same_uploads(self):
+        self.run_sync([song(1), song(2)])
+        FakeFetcher.asked, self.matcher.found = [], []
+        self.run_sync([song(1), song(2)], redownload=True)
+        self.assertEqual(sorted(FakeFetcher.asked),
+                         ["https://open.spotify.com/track/t1", "https://open.spotify.com/track/t2"])
+        self.assertEqual(self.matcher.found, [])  # no new searches: the same uploads, downloaded again
+        self.assertEqual(self.files(self.music / "Mix"), ["01 - A - Song 1.m4a", "02 - A - Song 2.m4a"])
+
+    def test_premium_download_at_128_kbps_is_noted(self):
+        download.use_sign_in({"browser": "chrome"})
+        self.addCleanup(download.use_sign_in, None)
+        self.kbps = {".download-2.m4a": 128, "02 - A - Song 2.m4a": 128}
+        report = self.run_sync([song(1), song(2)]).report
+        self.assertIn("YouTube Premium is on, but 1 song came in at 128 kbps", report)
+
+    def test_no_premium_note_without_premium(self):
+        download.use_sign_in(False)
+        self.kbps = {"01 - A - Song 1.m4a": 128}
+        self.assertNotIn("Premium", self.run_sync([song(1)]).report)
 
     def test_unsafe_playlist_name(self):
         result = self.run_sync([song(1)], name="Road: Trip?")

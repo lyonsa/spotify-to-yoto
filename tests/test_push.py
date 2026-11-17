@@ -82,6 +82,12 @@ class TagsTest(unittest.TestCase):
         with mock.patch.object(yoto, "MP4", side_effect=mutagen.MutagenError("bad")):
             self.assertIsNone(yoto.read_album(Path("/x/a.m4a")))
 
+    def test_read_kbps(self):
+        with mock.patch.object(yoto, "MP4", return_value=mock.Mock(info=mock.Mock(bitrate=255_874))):
+            self.assertEqual(yoto.read_kbps(Path("/x/a.m4a")), 256)
+        with mock.patch.object(yoto, "MP4", side_effect=mutagen.MutagenError("bad")):
+            self.assertIsNone(yoto.read_kbps(Path("/x/a.m4a")))
+
     def test_unreadable_file_stops_the_push(self):
         with mock.patch.object(yoto, "MP4", side_effect=mutagen.MutagenError("not an MP4")):
             with self.assertRaises(yoto.PushError) as err:

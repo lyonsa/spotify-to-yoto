@@ -91,6 +91,38 @@ spotify-to-yoto settings --music /Volumes/Music/Playlists   # from now on
 spotify-to-yoto --music /Volumes/Music/Playlists <link>     # this time only
 ```
 
+## YouTube Premium (optional)
+
+Without Premium, songs come in at about 128 kbps. With a YouTube Premium account, YouTube Music gives 256 kbps.
+Everything else works the same either way.
+
+The first time you sync or fix in a terminal, it asks once whether you have Premium:
+
+- **No**: it never asks again.
+- **Yes**: pick the browser you're signed in to YouTube with. For a Chromium-based browser that isn't listed (Dia,
+  Arc, Comet…), pick **Other** and type its name. If you're not signed in, it opens YouTube's sign-in page in that
+  browser and waits for you. It then checks with YouTube that your account gets the 256 kbps stream.
+
+From then on, each download reads your sign-in from that browser, so it stays current while you're signed in there.
+Nothing of your sign-in is saved: only which browser to read it from. If a download still comes in at 128 kbps, the
+report says so.
+
+```sh
+spotify-to-yoto settings --youtube-premium      # set it up again, or change browser
+spotify-to-yoto settings --no-youtube-premium   # turn it off
+spotify-to-yoto --redownload "<playlist link>"  # download a playlist's songs again, e.g. at 256 kbps
+```
+
+Good to know:
+
+- On a Mac, the first read asks for your Keychain (to unlock the browser's saved sign-ins). Click **Always Allow**,
+  or it asks on every run. Safari needs your terminal app to have **Full Disk Access** (System Settings → Privacy &
+  Security).
+- yt-dlp, the downloader underneath, warns that downloading with a signed-in account carries a small risk of YouTube
+  limiting that account.
+- Yoto converts every song when it's uploaded, so the player sounds the same either way: Premium is for the copies
+  in your music folder.
+
 ## Read the report
 
 After each playlist, it prints what to look at. A playlist with nothing to look at gets one line:
@@ -191,7 +223,7 @@ spotify-to-yoto settings --spotify-client-id <id> --spotify-client-secret <secre
 | --- | --- |
 | The songs | Your music folder, one folder per playlist |
 | What each playlist remembers (its link, matches, your fixes, its last report, its Yoto playlist and what was last pushed) | `.spotify-to-yoto.json` inside its folder |
-| Settings (music folder, Yoto client ID, your own Spotify keys) | `settings.json`, readable only by you: `~/Library/Application Support/spotify-to-yoto/` on a Mac, `~/.config/spotify-to-yoto/` on Linux, `%LOCALAPPDATA%\spotify-to-yoto\spotify-to-yoto\` on Windows. `spotify-to-yoto settings` shows them. |
+| Settings (music folder, Yoto client ID, your own Spotify keys, which browser holds your YouTube Premium sign-in) | `settings.json`, readable only by you: `~/Library/Application Support/spotify-to-yoto/` on a Mac, `~/.config/spotify-to-yoto/` on Linux, `%LOCALAPPDATA%\spotify-to-yoto\spotify-to-yoto\` on Windows. `spotify-to-yoto settings` shows them. |
 | The Yoto sign-in | Your system's keyring (Keychain, Credential Manager or Secret Service), or a private file beside the settings where there's none or it refuses |
 
 ## When something goes wrong
@@ -204,6 +236,8 @@ spotify-to-yoto settings --spotify-client-id <id> --spotify-client-secret <secre
 | `Failed to fetch secrets … Falling back to default secret` | Harmless while it carries on. The Spotify reader fetches a key from a volunteer's site, which was slow; reads take longer until it's back. |
 | `Couldn't read … from Spotify … The playlist must be public` | Make the playlist public, or check the link. If it keeps happening on every playlist, try again later, or set your own Spotify keys. |
 | `Another run is using …` | Wait for the other run. If none is running (one was stopped hard), delete the `.spotify-to-yoto.lock` folder it names. |
+| `YouTube Premium is on, but … came in at 128 kbps` | Sign in to YouTube again in the browser you chose, then `spotify-to-yoto --redownload "<playlist link>"`. |
+| `Couldn't read the browser's sign-in` | On a Mac, allow the Keychain prompt (or give your terminal Full Disk Access for Safari), then `spotify-to-yoto settings --youtube-premium`. |
 | The browser opens to sign in to Yoto again | Expected: Yoto's sign-in for apps like this runs out, and there's no long-lived one. |
 | `Over Yoto's limits` | Split the playlist on Spotify, or remove songs: 100 tracks; 100 MB and 60 minutes a track; 500 MB and 5 hours in all. |
 

@@ -52,8 +52,8 @@ class MatcherTest(unittest.TestCase):
 
     def test_falls_back_to_same_song_under_a_longer_artist_name(self):
         # Without an ISRC, spotDL's ranking rejects "Joan Jett" for "Joan Jett & the Blackhearts".
-        jett = song(name="Bad Reputation", artists=["Joan Jett & the Blackhearts"], artist="Joan Jett & the Blackhearts",
-                    duration=169, album_name=None)
+        band = "Joan Jett & the Blackhearts"
+        jett = song(name="Bad Reputation", artists=[band], artist=band, duration=169, album_name=None)
         self.results([
             result(url="https://music.youtube.com/watch?v=cover", name="Bad Reputation (Cover Version)",
                    artists=("Mikey And His Uke",), duration=193.0, result_id="cover"),

@@ -51,6 +51,17 @@ class FetcherTest(unittest.TestCase):
         self.assertEqual(s["overwrite"], "force")
         self.assertFalse(s["scan_for_songs"])
 
+    def test_sign_in_reaches_the_downloader(self):
+        download.use_sign_in({"browser": "chrome"})
+        self.addCleanup(download.use_sign_in, None)
+        download.Fetcher(self.folder).get([song("u/a")])
+        self.assertEqual(FakeDownloader.made[0].settings["yt_dlp_args"], "--cookies-from-browser chrome")
+        self.assertTrue(download.premium())
+        download.use_sign_in(False)
+        download.Fetcher(self.folder).get([song("u/a")])
+        self.assertNotIn("yt_dlp_args", FakeDownloader.made[1].settings)
+        self.assertFalse(download.premium())
+
     def test_fetcher_retries_dropped_downloads_once(self):
         got = download.Fetcher(self.folder).get([song("u/aaaaa"), song("u/flaky"), song("u/gone")])
         self.assertEqual(FakeDownloader.made[0].calls, [["u/aaaaa", "u/flaky", "u/gone"], ["u/flaky", "u/gone"]])

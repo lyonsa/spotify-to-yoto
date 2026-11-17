@@ -3,6 +3,22 @@ from spotdl.download.downloader import Downloader
 from spotdl.utils.deno import download_deno, is_deno_installed
 from spotdl.utils.ffmpeg import download_ffmpeg, is_ffmpeg_installed
 
+from spotify_to_yoto import youtube
+
+_sign_in = None  # yt-dlp's option to read the YouTube sign-in, when YouTube Premium is on
+
+
+def use_sign_in(config):
+    """Downloads from now on read the YouTube sign-in from this browser (a youtube.ask() answer); False or None
+    for none."""
+    global _sign_in
+    youtube.register(config)
+    _sign_in = youtube.yt_dlp_args(config)
+
+
+def premium():
+    return _sign_in is not None
+
 
 def ensure_tools():
     """spotDL needs ffmpeg, and yt-dlp needs Deno for YouTube; spotDL fetches both into its own folder."""
@@ -22,7 +38,7 @@ class Fetcher:
         """Spotify link -> downloaded file, for each spotDL Song whose download_url is set. Missing ones failed."""
         if not songs:
             return {}
-        downloader = Downloader({
+        options = {
             "audio_providers": ["youtube-music"],
             "format": "m4a",
             "bitrate": "disable",  # keep YouTube Music's own AAC, no re-encode
@@ -33,7 +49,10 @@ class Fetcher:
             "overwrite": "force",
             "scan_for_songs": False,
             "simple_tui": True,
-        })
+        }
+        if _sign_in:
+            options["yt_dlp_args"] = _sign_in  # Premium: YouTube Music's 256 kbps stream
+        downloader = Downloader(options)
         got = {}
         todo = list(songs)
         for _ in range(2):  # YouTube drops some downloads; a second try gets most of them

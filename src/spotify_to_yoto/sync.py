@@ -7,7 +7,7 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from spotify_to_yoto import checks, download, spotify, state
+from spotify_to_yoto import checks, download, spotify, state, youtube
 from spotify_to_yoto.matcher import Matcher, as_dict, from_dict
 from spotify_to_yoto.yoto import push
 
@@ -31,15 +31,18 @@ def _find(matcher, song):
         return None
 
 
-def _plan(playlist, data, folder, matcher, notes):
-    """Spotify link -> Match for every song to download now; songs whose file is up to date are left out."""
+def _plan(playlist, data, folder, matcher, notes, redownload=False):
+    """Spotify link -> Match for every song to download now; songs whose file is up to date are left out, unless
+    redownload asks for every song again (from the same uploads)."""
     todo, search = {}, []
     for song in playlist.songs:
         entry = data["songs"].get(song.url) or {}
         have = entry.get("file") and (folder / entry["file"]).exists()
         current = from_dict(entry.get("match"))
         wanted = data["fixes"].get(song.url)
-        if wanted:
+        if redownload and have and current and (not wanted or current.url == wanted):
+            todo[song.url] = current
+        elif wanted:
             if not (have and current and current.url == wanted):
                 try:
                     todo[song.url] = matcher.describe(wanted)
@@ -90,12 +93,15 @@ def _download(playlist, data, folder, todo, fetcher):
         if found:
             song.song.download_url = found.url
             ready.append(song)
+    got = set()
     for batch in _batches(ready):
         for url, path in fetcher(folder).get([s.song for s in batch]).items():
             # Out of spotDL's way at once, so the next batch's song of the same name can't overwrite it.
             temp = folder / f".download-{by_url[url].position}.m4a"
             path.replace(temp)
             data["songs"][url].update(file=temp.name, base=_unique(path.name, data, url))
+            got.add(url)
+    return got
 
 
 def _number(playlist, data, folder):
@@ -161,7 +167,18 @@ def _remove_gone(playlist, data, folder, notes):
         del data["songs"][url]
 
 
-def sync(url, music, fetch=spotify.fetch, matcher=None, fetcher=download.Fetcher):
+def _premium_note(data, folder, got):
+    """A line for the report when YouTube Premium is on but downloads still came in at the free bitrate."""
+    if not download.premium():
+        return []
+    low = [u for u in got if (push.read_kbps(folder / data["songs"][u]["file"]) or 999) < youtube.PREMIUM_KBPS]
+    if not low:
+        return []
+    return [f"  YouTube Premium is on, but {len(low)} song{'s' if len(low) > 1 else ''} came in at 128 kbps. Check "
+            "you're still signed in to YouTube in your browser."]
+
+
+def sync(url, music, fetch=spotify.fetch, matcher=None, fetcher=download.Fetcher, redownload=False):
     playlist = fetch(url)
     if not playlist.songs:
         raise spotify.SpotifyFailure(f"Spotify listed no songs for {url}, so nothing was changed.")
@@ -173,11 +190,12 @@ def sync(url, music, fetch=spotify.fetch, matcher=None, fetcher=download.Fetcher
         data.update(spotify=url, name=playlist.name, cover=playlist.cover)
         _sweep(data, folder)
         _remove_gone(playlist, data, folder, notes)
-        todo = _plan(playlist, data, folder, matcher or Matcher(), notes)
-        _download(playlist, data, folder, todo, fetcher)
+        todo = _plan(playlist, data, folder, matcher or Matcher(), notes, redownload)
+        got = _download(playlist, data, folder, todo, fetcher)
         state.save(folder, data)  # what's downloaded is kept, even if the run stops before the end
         _number(playlist, data, folder)
         state.save(folder, data)
+        notes += _premium_note(data, folder, got)
         lengths = _lengths(data, folder)
         _write_m3u8(playlist, data, folder, lengths)
         matches = {u: from_dict(e.get("match")) for u, e in data["songs"].items()}

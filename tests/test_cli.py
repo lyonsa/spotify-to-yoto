@@ -7,7 +7,7 @@ from unittest import mock
 
 from spotdl.providers.audio.base import AudioProviderError
 
-from spotify_to_yoto import cli, download, matcher, settings, spotify, state, sync
+from spotify_to_yoto import cli, download, matcher, settings, spotify, state, sync, youtube
 from spotify_to_yoto.yoto import push
 
 A = "https://open.spotify.com/playlist/AAAAAAAAaaaa"
@@ -36,7 +36,7 @@ class CliTest(unittest.TestCase):
         self.addCleanup(patcher.stop)
         return value
 
-    def fake_sync(self, url, music):
+    def fake_sync(self, url, music, redownload=False):
         name = {A: "Mix A", B: "Mix B"}[url]
         folder = music / name
         folder.mkdir(parents=True, exist_ok=True)
@@ -61,7 +61,7 @@ class CliTest(unittest.TestCase):
 
     def test_push_flag_pushes_each_after_its_sync(self):
         order = []
-        self.sync.side_effect = lambda url, music: order.append(("sync", url)) or self.fake_sync(url, music)
+        self.sync.side_effect = lambda url, music, **kw: order.append(("sync", url)) or self.fake_sync(url, music)
         self.push.side_effect = lambda folder: order.append(("push", folder.name)) or "card"
         code, out, _ = self.run_cli(A, B, "--push")
         self.assertEqual(code, 0)
@@ -70,7 +70,7 @@ class CliTest(unittest.TestCase):
         self.assertNotIn("To put them on Yoto", out)
 
     def test_one_bad_link_does_not_stop_the_rest(self):
-        def flaky(url, music):
+        def flaky(url, music, redownload=False):
             if url == A:
                 raise spotify.SpotifyFailure(f"Couldn't read {url} from Spotify. The playlist must be public.")
             return self.fake_sync(url, music)
@@ -165,7 +165,7 @@ class CliTest(unittest.TestCase):
         self.sync.assert_not_called()
 
     def test_file_error_in_one_playlist_does_not_stop_the_rest(self):
-        def locked_file(url, music):
+        def locked_file(url, music, redownload=False):
             if url == A:
                 raise PermissionError(13, "The process cannot access the file", "01 - x.m4a")
             return self.fake_sync(url, music)
@@ -256,6 +256,66 @@ class CliTest(unittest.TestCase):
         code, out, _ = self.run_cli("status")
         self.assertEqual(code, 0)
         self.assertIn("No playlists", out)
+
+    def premium_patches(self, terminal=True, answer=None):
+        self.patch(cli, "_terminal", mock.Mock(return_value=terminal))
+        ask = self.patch(youtube, "ask", mock.Mock(return_value=answer))
+        use = self.patch(download, "use_sign_in", mock.Mock())
+        return ask, use
+
+    def test_first_sync_asks_about_premium_once(self):
+        dia = {"browser": "dia", "dir": "/D", "keyring": "Dia"}
+        ask, use = self.premium_patches(answer=dia)
+        self.run_cli(A)
+        self.run_cli(A)
+        ask.assert_called_once()
+        self.assertEqual(self.saved["youtube_premium"], dia)
+        self.assertEqual([c.args[0] for c in use.call_args_list], [dia, dia])
+
+    def test_no_answers_no_is_remembered(self):
+        ask, use = self.premium_patches(answer=False)
+        self.run_cli(A)
+        self.run_cli(A)
+        ask.assert_called_once()
+        self.assertIs(self.saved["youtube_premium"], False)
+        use.assert_called_with(False)
+
+    def test_premium_that_couldnt_be_set_up_is_asked_again(self):
+        ask, _ = self.premium_patches(answer=None)
+        self.run_cli(A)
+        self.run_cli(A)
+        self.assertEqual(ask.call_count, 2)
+        self.assertNotIn("youtube_premium", self.saved)
+
+    def test_no_terminal_never_asks(self):
+        ask, use = self.premium_patches(terminal=False)
+        self.run_cli(A)
+        ask.assert_not_called()
+        use.assert_called_once_with(None)
+
+    def test_fix_asks_too(self):
+        self.add_track(A)
+        ask, _ = self.premium_patches(answer=False)
+        self.run_cli("fix", TRACK, "https://youtu.be/abc")
+        ask.assert_called_once()
+
+    def test_settings_youtube_premium_asks_again(self):
+        self.saved["youtube_premium"] = False
+        ask, _ = self.premium_patches(answer={"browser": "chrome"})
+        code, out, _ = self.run_cli("settings", "--youtube-premium")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.saved["youtube_premium"], {"browser": "chrome"})
+        code, out, _ = self.run_cli("settings", "--no-youtube-premium")
+        self.assertIs(self.saved["youtube_premium"], False)
+        self.saved["youtube_premium"] = {"browser": "dia", "dir": "/D", "keyring": "Dia"}
+        _, out, _ = self.run_cli("settings")
+        self.assertIn("YouTube Premium:       on, through Dia", out)
+
+    def test_redownload_flag(self):
+        self.run_cli(A, "--redownload")
+        self.assertEqual(self.sync.call_args.kwargs, {"redownload": True})
+        self.run_cli(A)
+        self.assertEqual(self.sync.call_args.kwargs, {"redownload": False})
 
     def test_no_links_shows_usage(self):
         code, _, err = self.run_cli()
