@@ -39,6 +39,13 @@ def safe_name(name):
     return UNSAFE.sub("_", name).rstrip(". ") or "Playlist"
 
 
+def title(folder, data):
+    """The playlist's name for people: Spotify's when the folder only lost characters a folder can't take, else
+    the folder's, since a folder the user renamed keeps their name."""
+    name = data.get("name")
+    return name if name and safe_name(name) == Path(folder).name else Path(folder).name
+
+
 def _folders(music):
     music = Path(music)
     if not music.is_dir():

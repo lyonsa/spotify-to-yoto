@@ -136,7 +136,7 @@ def push(folder):
         raise PushError("Over Yoto's limits, so nothing was uploaded:\n" + "\n".join(problems))
     uploads = upload_all(tracks)
     data = state.load(folder)
-    payload = {"title": data["name"] or folder.name, "content": {"chapters": chapters(tracks, uploads)}}
+    payload = {"title": state.title(folder, data), "content": {"chapters": chapters(tracks, uploads)}}
     card = get_card(data["yoto"]) if data["yoto"] else None
     if card:
         payload["cardId"] = data["yoto"]

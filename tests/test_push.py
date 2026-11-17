@@ -171,9 +171,18 @@ class PushTest(unittest.TestCase):
         self.assertEqual(self.stored(), "new1")
 
     def test_title_is_the_playlist_name_from_state(self):
+        # The folder couldn't take the colon; Yoto can.
+        self.folder = self.folder.with_name("Ari_ Mixtape")
+        self.folder.mkdir()
         self.remember(name="Ari: Mixtape")
         self.push()
         self.assertEqual(self.save_card.call_args[0][0]["title"], "Ari: Mixtape")
+
+    def test_renamed_folder_names_the_playlist(self):
+        # The user renamed "Road Trip" to "Road Trip Mix": their name wins.
+        self.remember(name="Road Trip")
+        self.push()
+        self.assertEqual(self.save_card.call_args[0][0]["title"], self.name)
 
     def test_rerun_updates_and_keeps_cover(self):
         self.remember(yoto="c1", cover="https://i.scdn.co/image/x")
