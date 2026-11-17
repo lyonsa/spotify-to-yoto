@@ -32,3 +32,5 @@ packages = ["src/spotify_to_yoto"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# spotDL imports its web app, which uses an old FastAPI call.
+filterwarnings = ["ignore::DeprecationWarning:spotdl.*"]
