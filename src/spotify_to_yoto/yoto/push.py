@@ -15,7 +15,7 @@ from mutagen.mp4 import MP4
 
 from spotify_to_yoto import state
 from spotify_to_yoto.yoto.api import YotoError, get_card, save_card, upload, upload_cover
-from spotify_to_yoto.yoto.auth import AuthError
+from spotify_to_yoto.yoto.auth import AuthError, access_token
 
 UPLOADS_AT_ONCE = 4
 NUMBERED = re.compile(r"^(\d+) - (.+)\.m4a$")
@@ -143,6 +143,7 @@ def push(folder):
     problems = check_limits(tracks)
     if problems:
         raise PushError("Over Yoto's limits, so nothing was uploaded:\n" + "\n".join(problems))
+    access_token()  # sign in here, not in an upload thread, where Ctrl-C during the browser wait would hang
     uploads = upload_all(tracks)
     data = state.load(folder)
     payload = {"title": state.title(folder, data), "content": {"chapters": chapters(tracks, uploads)}}

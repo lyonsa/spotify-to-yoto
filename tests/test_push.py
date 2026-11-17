@@ -1,5 +1,6 @@
 import io
 import tempfile
+import threading
 import unittest
 import urllib.error
 from contextlib import redirect_stdout
@@ -146,6 +147,7 @@ class PushTest(unittest.TestCase):
         self.save_card = self.patch("save_card", mock.Mock(return_value="new1"))
         self.upload_cover = self.patch("upload_cover", mock.Mock(return_value="https://yoto/cover"))
         self.fetch = self.patch("urlopen", mock.Mock(side_effect=lambda url, timeout=None: Image(b"jpg")))
+        self.sign_in = self.patch("access_token", mock.Mock(return_value="tok"))
 
     def patch(self, name, value):
         patcher = mock.patch.object(yoto, name, value)
@@ -175,6 +177,14 @@ class PushTest(unittest.TestCase):
         self.assertEqual([c["title"] for c in payload["content"]["chapters"]], ["Song 1", "Song 2"])
         self.get_card.assert_not_called()
         self.assertEqual(self.stored(), "new1")
+
+    def test_sign_in_happens_first_on_the_main_thread(self):
+        # The browser wait and the client-ID question must not run inside an upload thread: Ctrl-C would hang.
+        order = []
+        self.sign_in.side_effect = lambda: order.append(("sign in", threading.current_thread())) or "tok"
+        self.upload.side_effect = lambda p: order.append(("upload", None)) or upload_result(int(p.name[:2]))
+        self.push()
+        self.assertEqual(order[0], ("sign in", threading.main_thread()))
 
     def test_title_is_the_playlist_name_from_state(self):
         # The folder couldn't take the colon; Yoto can.
