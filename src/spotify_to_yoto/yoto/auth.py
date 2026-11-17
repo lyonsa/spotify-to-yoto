@@ -19,7 +19,6 @@ from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import keyring
-import keyring.errors
 
 from spotify_to_yoto import settings
 
@@ -88,7 +87,7 @@ def _token_file():
 def load_tokens():
     try:
         saved = keyring.get_password(*KEYRING)
-    except keyring.errors.KeyringError:
+    except Exception:  # keyring backends raise their own errors, not only KeyringError
         saved = None
     if saved is None and _token_file().exists():
         saved = _token_file().read_text(encoding="utf-8")
@@ -106,8 +105,13 @@ def save_tokens(tokens):
         keyring.set_password(*KEYRING, text)
         _token_file().unlink(missing_ok=True)
         return
-    except keyring.errors.KeyringError:
-        pass  # no keyring here, or one that refuses a token this long (Windows): keep it in a private file
+    except Exception:
+        # No keyring here, or one that refuses a token this long: Windows raises pywintypes.error, not a
+        # KeyringError. Keep it in a private file, and clear any older entry, which load_tokens would read first.
+        try:
+            keyring.delete_password(*KEYRING)
+        except Exception:
+            pass
     path = _token_file()
     path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)

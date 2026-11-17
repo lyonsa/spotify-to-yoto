@@ -110,6 +110,21 @@ class TokenStoreTest(unittest.TestCase):
             self.assertEqual(yoto_auth.load_tokens(), self.tokens)
         self.assertTrue((self.dir / "yoto-sign-in.json").exists())
 
+    def test_windows_refusal_falls_back_and_clears_the_old_entry(self):
+        # Windows Credential Manager raises pywintypes.error, a plain Exception, for a token over 2,560 bytes.
+        refused = Exception(1783, "CredWrite", "The stub received bad data.")
+        with mock.patch.object(yoto_auth.keyring, "set_password", side_effect=refused), \
+                mock.patch.object(yoto_auth.keyring, "delete_password") as delete, \
+                mock.patch.object(yoto_auth.keyring, "get_password", return_value=None):
+            yoto_auth.save_tokens(self.tokens)
+            self.assertEqual(yoto_auth.load_tokens(), self.tokens)
+        delete.assert_called_once_with("spotify-to-yoto", "yoto")  # an older entry would hide the new file
+
+    def test_keyring_read_failure_reads_file(self):
+        (self.dir / "yoto-sign-in.json").write_text(json.dumps(self.tokens))
+        with mock.patch.object(yoto_auth.keyring, "get_password", side_effect=Exception("locked")):
+            self.assertEqual(yoto_auth.load_tokens(), self.tokens)
+
     def test_no_keyring_reads_file(self):
         (self.dir / "yoto-sign-in.json").write_text(json.dumps(self.tokens))
         with mock.patch.object(yoto_auth.keyring, "get_password", side_effect=keyring.errors.NoKeyringError()):
