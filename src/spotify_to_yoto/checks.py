@@ -38,12 +38,21 @@ def _version_word(song, match, album):
     return None
 
 
-def _problem(song, match, length, seen, album=None):
-    """The first problem the song has, as (kind, detail), or None."""
+def _cut_off(match, length):
+    if match.duration and length < match.duration - CUT_OFF:
+        return "cut", f"the file runs {length:.0f} s, YouTube's upload {match.duration:.0f} s"
+    return None
+
+
+def _problem(song, match, length, seen, album=None, fixed=False):
+    """The first problem the song has, as (kind, detail), or None. A song the user fixed was chosen by ear, so
+    only a broken download is reported."""
     if match is None:
         return "missing", "no match on YouTube Music"
     if length is None:
         return "missing", "matched, but the download failed"
+    if fixed:
+        return _cut_off(match, length)
     if match.explicit is True and song.explicit is False:
         return "explicit", "YouTube Music's is marked explicit"
     if _version_word(song, match, album):
@@ -52,8 +61,9 @@ def _problem(song, match, length, seen, album=None):
         return "artist", f"YouTube has it by {', '.join(match.artists or [match.channel])}"
     if match.url in seen:
         return "same", f"same upload as song {seen[match.url]}"
-    if match.duration and length < match.duration - CUT_OFF:
-        return "cut", f"the file runs {length:.0f} s, YouTube's upload {match.duration:.0f} s"
+    cut = _cut_off(match, length)
+    if cut:
+        return cut
     if abs(length - song.duration) > SLACK:
         return "length", f"{length - song.duration:+.0f} s against Spotify"
     if not match.album:
@@ -61,9 +71,9 @@ def _problem(song, match, length, seen, album=None):
     return None
 
 
-def find(playlist, matches, lengths, albums=None):
+def find(playlist, matches, lengths, albums=None, fixed=()):
     """matches: Spotify link -> Match or None; lengths: Spotify link -> the file's seconds, for files on disk;
-    albums: Spotify link -> Spotify's album name, where known."""
+    albums: Spotify link -> Spotify's album name, where known; fixed: Spotify links whose upload the user chose."""
     albums = albums or {}
     problems = []
     have = {s.position for s in playlist.songs}
@@ -73,7 +83,7 @@ def find(playlist, matches, lengths, albums=None):
     seen = {}
     for song in sorted(playlist.songs, key=lambda s: s.position):
         match = matches.get(song.url)
-        found = _problem(song, match, lengths.get(song.url), seen, albums.get(song.url))
+        found = _problem(song, match, lengths.get(song.url), seen, albums.get(song.url), song.url in fixed)
         if match and match.url not in seen:
             seen[match.url] = song.position
         if found:

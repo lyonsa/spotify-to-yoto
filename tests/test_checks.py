@@ -107,6 +107,22 @@ class FindTest(unittest.TestCase):
         s = song(1)
         self.assertEqual(self.kinds([s], matches={s.url: match(1, album=None)}), [(1, "video")])
 
+    def test_a_song_you_fixed_is_trusted(self):
+        # Spotify's "Wildflowers" is itself a Tom Petty cover; the user chose this upload with fix.
+        s = song(1, name="Wildflowers - Recorded at Spotify Studios NYC", artists=("Miley Cyrus",), duration=185)
+        m = match(1, title="Miley Cyrus - Wildflowers (Tom Petty Cover) [Audio]", artists=(), channel="Miley Cyrus",
+                  album=None, duration=190.0, explicit=None)
+        playlist = Playlist(PL, "Mix", None, 1, [s])
+        self.assertEqual(checks.find(playlist, {s.url: m}, {s.url: 190.0}, fixed={s.url}), [])
+        self.assertEqual([p.kind for p in checks.find(playlist, {s.url: m}, {s.url: 190.0})], ["version"])
+
+    def test_a_song_you_fixed_still_reports_a_broken_download(self):
+        s = song(1)
+        playlist = Playlist(PL, "Mix", None, 1, [s])
+        self.assertEqual([p.kind for p in checks.find(playlist, {s.url: match(1)}, {s.url: 100.0}, fixed={s.url})],
+                         ["cut"])
+        self.assertEqual([p.kind for p in checks.find(playlist, {s.url: match(1)}, {}, fixed={s.url})], ["missing"])
+
     def test_first_problem_wins(self):
         s = song(1)
         m = match(1, explicit=True, duration=300.0)

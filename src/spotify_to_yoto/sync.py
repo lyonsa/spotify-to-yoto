@@ -183,6 +183,7 @@ def sync(url, music, fetch=spotify.fetch, matcher=None, fetcher=download.Fetcher
         tracks = [push.Track(e["position"], folder / e["file"], e["file"], lengths[u],
                              (folder / e["file"]).stat().st_size) for u, e in data["songs"].items() if u in lengths]
         albums = {u: push.read_album(folder / data["songs"][u]["file"]) for u in lengths}
-        report = checks.report(state.title(folder, data), playlist, checks.find(playlist, matches, lengths, albums),
-                               push.check_limits(tracks))
+        fixed = {u for u, link in data["fixes"].items() if matches.get(u) and matches[u].url == link}
+        problems = checks.find(playlist, matches, lengths, albums, fixed)
+        report = checks.report(state.title(folder, data), playlist, problems, push.check_limits(tracks))
     return Result(folder, "\n".join([report] + notes))

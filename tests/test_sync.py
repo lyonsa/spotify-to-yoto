@@ -164,6 +164,15 @@ class SyncTest(unittest.TestCase):
         self.assertEqual(FakeFetcher.asked, [])
         self.assertEqual(self.files(self.music / "Mix"), ["01 - A - Song 1.m4a"])
 
+    def test_fixed_song_is_not_flagged_for_its_title(self):
+        self.run_sync([song(1)])
+        folder = self.music / "Mix"
+        data = state.load(folder)
+        data["fixes"]["https://open.spotify.com/track/t1"] = "https://music.youtube.com/watch?v=cover"
+        state.save(folder, data)
+        self.matcher.describe = lambda url: Match(url, "Song 1 (Tom Petty Cover)", [], "A", None, 200.0, None)
+        self.assertEqual(self.run_sync([song(1)]).report, "Mix: 1 songs, all fine")
+
     def test_spotify_album_reaches_the_checks(self):
         self.matcher.find = lambda spotdl: Match("https://music.youtube.com/watch?v=1", "Song 1 (Live)", ["A"], None,
                                                  "Live at Home", 200.0, False)
