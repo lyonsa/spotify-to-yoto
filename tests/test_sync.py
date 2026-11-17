@@ -67,6 +67,10 @@ class SyncTest(unittest.TestCase):
         patcher = mock.patch.object(push, "read_tags", side_effect=lambda path: (path.stem, 200.0))
         patcher.start()
         self.addCleanup(patcher.stop)
+        self.albums = {}
+        patcher = mock.patch.object(push, "read_album", side_effect=lambda path: self.albums.get(path.name))
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def run_sync(self, songs, name="Mix", length=None):
         playlist = Playlist(URL, name, "https://cover", length or len(songs), songs)
@@ -156,6 +160,12 @@ class SyncTest(unittest.TestCase):
         self.run_sync([song(1)])
         self.assertEqual(FakeFetcher.asked, [])
         self.assertEqual(self.files(self.music / "Mix"), ["01 - A - Song 1.m4a"])
+
+    def test_spotify_album_reaches_the_checks(self):
+        self.matcher.find = lambda spotdl: Match("https://music.youtube.com/watch?v=1", "Song 1 (Live)", ["A"], None,
+                                                 "Live at Home", 200.0, False)
+        self.albums = {"01 - A - Song 1.m4a": "Live at Home"}
+        self.assertEqual(self.run_sync([song(1)]).report, "Mix: 1 songs, all fine")
 
     def test_unsafe_playlist_name(self):
         result = self.run_sync([song(1)], name="Road: Trip?")

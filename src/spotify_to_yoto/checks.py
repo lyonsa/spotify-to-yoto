@@ -27,8 +27,9 @@ def _same_artist(song, match):
     return same_artist(song.artists, list(match.artists) + [match.channel])
 
 
-def _version_word(song, match):
-    ours = (song.name or "").casefold()
+def _version_word(song, match, album):
+    # Spotify's album counts too: "Home to Me" from "Live at Dorothy Major" is the live version.
+    ours = f"{song.name or ''} {album or ''}".casefold()
     theirs = (match.title or "").casefold()
     for word in VERSION_WORDS:
         pattern = r"\b" + r"\s+".join(word.split()) + r"\b"
@@ -37,7 +38,7 @@ def _version_word(song, match):
     return None
 
 
-def _problem(song, match, length, seen):
+def _problem(song, match, length, seen, album=None):
     """The first problem the song has, as (kind, detail), or None."""
     if match is None:
         return "missing", "no match on YouTube Music"
@@ -45,7 +46,7 @@ def _problem(song, match, length, seen):
         return "missing", "matched, but the download failed"
     if match.explicit is True and song.explicit is False:
         return "explicit", "YouTube Music's is marked explicit"
-    if _version_word(song, match):
+    if _version_word(song, match, album):
         return "version", f'YouTube has "{match.title}"'
     if not _same_artist(song, match):
         return "artist", f"YouTube has it by {', '.join(match.artists or [match.channel])}"
@@ -60,8 +61,10 @@ def _problem(song, match, length, seen):
     return None
 
 
-def find(playlist, matches, lengths):
-    """matches: Spotify link -> Match or None; lengths: Spotify link -> the file's seconds, for files on disk."""
+def find(playlist, matches, lengths, albums=None):
+    """matches: Spotify link -> Match or None; lengths: Spotify link -> the file's seconds, for files on disk;
+    albums: Spotify link -> Spotify's album name, where known."""
+    albums = albums or {}
     problems = []
     have = {s.position for s in playlist.songs}
     for position in range(1, playlist.length + 1):
@@ -70,7 +73,7 @@ def find(playlist, matches, lengths):
     seen = {}
     for song in sorted(playlist.songs, key=lambda s: s.position):
         match = matches.get(song.url)
-        found = _problem(song, match, lengths.get(song.url), seen)
+        found = _problem(song, match, lengths.get(song.url), seen, albums.get(song.url))
         if match and match.url not in seen:
             seen[match.url] = song.position
         if found:

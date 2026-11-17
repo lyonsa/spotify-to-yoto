@@ -44,6 +44,15 @@ def read_tags(path):
     return (title[0] if title else None), float(song.info.length)
 
 
+def read_album(path):
+    """The album spotDL wrote from Spotify, or None: it only sharpens the report, so a bad file isn't an error."""
+    try:
+        album = (MP4(path).tags or {}).get("\xa9alb")
+    except mutagen.MutagenError:
+        return None
+    return album[0] if album else None
+
+
 def read_tracks(folder):
     """The folder's numbered songs in order, and the numbers missing between them (songs that didn't download)."""
     tracks = []

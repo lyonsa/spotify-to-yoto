@@ -58,6 +58,15 @@ class FindTest(unittest.TestCase):
         m = match(1, title="Live Forever (Remastered)", artists=("Oasis",))
         self.assertEqual(self.kinds([s], matches={s.url: m}), [])
 
+    def test_version_word_in_spotify_album_is_fine(self):
+        # Spotify's "Home to Me" is from the album "Live at Dorothy Major": the live upload is the right one.
+        s = song(1, name="Home to Me")
+        playlist = Playlist(PL, "Mix", None, 1, [s])
+        matches = {s.url: match(1, title="Home to Me (Live)", album="Live at Dorothy Major")}
+        self.assertEqual(checks.find(playlist, matches, {s.url: 266.0}, {s.url: "Live at Dorothy Major"}), [])
+        self.assertEqual([p.kind for p in checks.find(playlist, matches, {s.url: 266.0}, {s.url: "Studio"})],
+                         ["version"])
+
     def test_version_word_inside_another_word_is_fine(self):
         s = song(1, name="Delivery")
         self.assertEqual(self.kinds([s], matches={s.url: match(1, title="Delivery")}), [])

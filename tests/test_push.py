@@ -75,6 +75,12 @@ class TagsTest(unittest.TestCase):
         with mock.patch.object(yoto, "MP4", return_value=song):
             self.assertEqual(yoto.read_tags(Path("/x/01 - a.m4a")), (None, 10.0))
 
+    def test_read_album(self):
+        with mock.patch.object(yoto, "MP4", return_value=mock.Mock(tags={"\xa9alb": ["Le Pop"]})):
+            self.assertEqual(yoto.read_album(Path("/x/a.m4a")), "Le Pop")
+        with mock.patch.object(yoto, "MP4", side_effect=mutagen.MutagenError("bad")):
+            self.assertIsNone(yoto.read_album(Path("/x/a.m4a")))
+
     def test_unreadable_file_stops_the_push(self):
         with mock.patch.object(yoto, "MP4", side_effect=mutagen.MutagenError("not an MP4")):
             with self.assertRaises(yoto.PushError) as err:
