@@ -123,10 +123,10 @@ class ReportTest(unittest.TestCase):
             "  Over Yoto's limits: 120 songs: Yoto takes up to 100 tracks.",
             "  07 Wrong artist: Aimer - Kataomoi (YouTube has it by Aimer Fan Channel)",
             "     Listen: https://music.youtube.com/watch?v=abc",
-            f"     To replace it: spotify-to-yoto fix {aimer.url} <YouTube link>",
+            f"     To replace it: spotify-to-yoto fix {aimer.url} \"<YouTube link>\"",
             "  12 Missing: YOASOBI - Idol (no match on YouTube Music)",
             f"     To add it: find it on https://music.youtube.com, then spotify-to-yoto fix {idol.url} "
-            "<YouTube link>",
+            "\"<YouTube link>\"",
             "  19 Couldn't download: a file of your own on Spotify, or a song no longer on Spotify",
         ]))
 

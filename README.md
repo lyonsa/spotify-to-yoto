@@ -55,8 +55,11 @@ this, so when a sign-in runs out, a push opens the browser again.
 ## Download a playlist
 
 ```sh
-spotify-to-yoto https://open.spotify.com/playlist/1A2b3C4d5E6f7G8h9I0jKl
+spotify-to-yoto "https://open.spotify.com/playlist/1A2b3C4d5E6f7G8h9I0jKl?si=…"
 ```
+
+Put each link in quotes: links copied from Spotify and YouTube have a `?` in them, which the Mac's shell would
+otherwise read as a file pattern ("no matches found").
 
 Give it one link, several, or a text file with one link a line (lines starting with `#` are skipped). The playlist
 must be public on Spotify.
@@ -90,9 +93,9 @@ Otherwise each song with a problem gets a line, under the first problem it has:
 Road Trip Mix: 41 songs, 39 fine, 2 to look at
   07 Wrong artist: Aimer - Kataomoi (YouTube has it by Aimer Fan Channel)
      Listen: https://music.youtube.com/watch?v=…
-     To replace it: spotify-to-yoto fix https://open.spotify.com/track/… <YouTube link>
+     To replace it: spotify-to-yoto fix https://open.spotify.com/track/… "<YouTube link>"
   12 Missing: YOASOBI - Idol (no match on YouTube Music)
-     To add it: find it on https://music.youtube.com, then spotify-to-yoto fix https://open.spotify.com/track/… <YouTube link>
+     To add it: find it on https://music.youtube.com, then spotify-to-yoto fix https://open.spotify.com/track/… "<YouTube link>"
 ```
 
 | Line | What it means |
@@ -108,10 +111,10 @@ Road Trip Mix: 41 songs, 39 fine, 2 to look at
 | From a video, not an album track | The upload isn't from an album, so it may be a music video with extra sound. |
 
 Listen to the link. If it's wrong, find the right song on [YouTube Music](https://music.youtube.com) (or YouTube),
-copy its link, and run the line the report gives:
+copy its link, and run the line the report gives, with the link inside the quotes:
 
 ```sh
-spotify-to-yoto fix https://open.spotify.com/track/… https://music.youtube.com/watch?v=…
+spotify-to-yoto fix https://open.spotify.com/track/… "https://music.youtube.com/watch?v=…"
 ```
 
 That downloads the new upload, keeps your choice for every later run, and prints the playlist's report again.

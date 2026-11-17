@@ -20,7 +20,7 @@ KINDS = {
 VERSION_WORDS = ("live", "remix", "karaoke", "instrumental", "cover", "sped up", "slowed", "acoustic")
 SLACK = 3  # seconds a download may differ from Spotify's length
 CUT_OFF = 10  # seconds short of YouTube's own length that mean the download broke off
-FIX = "spotify-to-yoto fix {track} <YouTube link>"
+FIX = 'spotify-to-yoto fix {track} "<YouTube link>"'  # quoted: zsh reads the ? in a YouTube link as a pattern
 
 
 def _same_artist(song, match):
