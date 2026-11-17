@@ -4,7 +4,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from spotify_to_yoto import state, sync
+from spotdl.providers.audio.base import AudioProviderError
+
+from spotify_to_yoto import spotify, state, sync
 from spotify_to_yoto.matcher import Match
 from spotify_to_yoto.spotify import Playlist, SongInfo
 from spotify_to_yoto.yoto import push
@@ -155,7 +157,8 @@ class SyncTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 self.run_sync([song(1)])
         entry = state.load(self.music / "Mix")["songs"]["https://open.spotify.com/track/t1"]
-        self.assertEqual(entry["file"], "A - Song 1.m4a")
+        self.assertEqual(entry["base"], "A - Song 1.m4a")
+        self.assertTrue((self.music / "Mix" / entry["file"]).exists())
         FakeFetcher.asked = []
         self.run_sync([song(1)])
         self.assertEqual(FakeFetcher.asked, [])
@@ -166,6 +169,70 @@ class SyncTest(unittest.TestCase):
                                                  "Live at Home", 200.0, False)
         self.albums = {"01 - A - Song 1.m4a": "Live at Home"}
         self.assertEqual(self.run_sync([song(1)]).report, "Mix: 1 songs, all fine")
+
+    def test_two_songs_with_one_name_keep_two_files(self):
+        # The same song added from the album and from a single: spotDL names both "A - Same.m4a".
+        a, b = song(1, name="Same"), song(2, name="Same")
+        self.run_sync([a, b])
+        folder = self.music / "Mix"
+        self.assertEqual(self.files(folder), ["01 - A - Same.m4a", "02 - A - Same (2).m4a"])
+        self.assertTrue((folder / "01 - A - Same.m4a").read_text().endswith("v=1"))
+        self.assertTrue((folder / "02 - A - Same (2).m4a").read_text().endswith("v=2"))
+        FakeFetcher.asked = []
+        self.run_sync([a, b])
+        self.assertEqual(FakeFetcher.asked, [])
+
+    def test_names_differing_only_in_case_keep_two_files(self):
+        # Mac and Windows folders treat "Same" and "same" as one name.
+        self.run_sync([song(1, name="Same"), song(2, name="same")])
+        self.assertEqual(self.files(self.music / "Mix"), ["01 - A - Same.m4a", "02 - A - same (2).m4a"])
+
+    def test_interrupted_renumbering_recovers(self):
+        self.run_sync([song(1), song(2)])
+        swapped = [song(2)._replace(position=1), song(1)._replace(position=2)]
+        with mock.patch.object(sync, "_place", side_effect=RuntimeError("stopped")):
+            with self.assertRaises(RuntimeError):
+                self.run_sync(swapped)
+        FakeFetcher.asked = []
+        self.run_sync(swapped)
+        self.assertEqual(FakeFetcher.asked, [])
+        self.assertEqual(self.files(self.music / "Mix"), ["01 - A - Song 2.m4a", "02 - A - Song 1.m4a"])
+
+    def test_stray_temporary_files_are_swept(self):
+        self.run_sync([song(1)])
+        (self.music / "Mix" / ".renaming-3.m4a").write_text("old")
+        (self.music / "Mix" / ".download-9.m4a").write_text("old")
+        self.run_sync([song(1)])
+        self.assertEqual(self.files(self.music / "Mix"), ["01 - A - Song 1.m4a"])
+
+    def test_short_listing_deletes_nothing(self):
+        # Spotify's listing can drop a song it can't format: its file must not go.
+        self.run_sync([song(1), song(2), song(3)])
+        report = self.run_sync([song(1), song(3)], length=3).report
+        self.assertEqual(self.files(self.music / "Mix"),
+                         ["01 - A - Song 1.m4a", "02 - A - Song 2.m4a", "03 - A - Song 3.m4a"])
+        self.assertIn("nothing was deleted", report)
+
+    def test_empty_listing_changes_nothing(self):
+        self.run_sync([song(1)])
+        with self.assertRaises(spotify.SpotifyFailure):
+            self.run_sync([], length=0)
+        self.assertEqual(self.files(self.music / "Mix"), ["01 - A - Song 1.m4a"])
+
+    def test_dead_fix_keeps_the_song_and_says_so(self):
+        self.run_sync([song(1)])
+        folder = self.music / "Mix"
+        data = state.load(folder)
+        data["fixes"]["https://open.spotify.com/track/t1"] = "https://music.youtube.com/watch?v=dead"
+        state.save(folder, data)
+        self.matcher.describe = mock.Mock(side_effect=AudioProviderError("YT-DLP download error"))
+        report = self.run_sync([song(1)]).report
+        self.assertEqual(self.files(folder), ["01 - A - Song 1.m4a"])
+        self.assertIn("watch?v=dead", report)
+
+    def test_search_error_reports_missing(self):
+        self.matcher.find = mock.Mock(side_effect=Exception("YouTube Music said no"))
+        self.assertIn("01 Missing", self.run_sync([song(1)]).report)
 
     def test_unsafe_playlist_name(self):
         result = self.run_sync([song(1)], name="Road: Trip?")

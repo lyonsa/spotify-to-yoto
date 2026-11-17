@@ -5,7 +5,9 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
-from spotify_to_yoto import cli, download, settings, spotify, state, sync
+from spotdl.providers.audio.base import AudioProviderError
+
+from spotify_to_yoto import cli, download, matcher, settings, spotify, state, sync
 from spotify_to_yoto.yoto import push
 
 A = "https://open.spotify.com/playlist/AAAAAAAAaaaa"
@@ -25,6 +27,8 @@ class CliTest(unittest.TestCase):
         self.patch(spotify, "connect", mock.Mock())
         self.sync = self.patch(sync, "sync", mock.Mock(side_effect=self.fake_sync))
         self.push = self.patch(push, "push", mock.Mock(return_value="card1"))
+        self.describe = mock.Mock(return_value=None)
+        self.patch(matcher, "Matcher", mock.Mock(return_value=mock.Mock(describe=self.describe)))
 
     def patch(self, owner, name, value):
         patcher = mock.patch.object(owner, name, value)
@@ -132,6 +136,51 @@ class CliTest(unittest.TestCase):
         state.save(folder, data)
         self.run_cli("fix", TRACK, "https://youtu.be/xyz_-9")
         self.assertEqual(state.load(folder)["fixes"][TRACK], "https://music.youtube.com/watch?v=xyz_-9")
+
+    def add_track(self, url):
+        folder = self.fake_sync(url, self.music).folder
+        data = state.load(folder)
+        data["songs"][TRACK] = {"file": None, "base": None, "position": 1, "match": None}
+        state.save(folder, data)
+        return folder
+
+    def test_fix_reaches_every_playlist_with_the_song(self):
+        a, b = self.add_track(A), self.add_track(B)
+        self.sync.reset_mock()
+        code, out, _ = self.run_cli("fix", TRACK, "https://youtu.be/abc")
+        self.assertEqual(code, 0)
+        for folder in (a, b):
+            self.assertEqual(state.load(folder)["fixes"], {TRACK: "https://music.youtube.com/watch?v=abc"})
+        self.assertEqual([c.args[0] for c in self.sync.call_args_list], [A, B])
+        self.assertIn("Mix B: 2 songs", out)
+
+    def test_fix_with_a_dead_video_says_so_and_saves_nothing(self):
+        folder = self.add_track(A)
+        self.sync.reset_mock()
+        self.describe.side_effect = AudioProviderError("YT-DLP download error - https://music.youtube.com/watch?v=x")
+        code, _, err = self.run_cli("fix", TRACK, "https://youtu.be/x")
+        self.assertEqual(code, 1)
+        self.assertIn("YouTube", err)
+        self.assertEqual(state.load(folder)["fixes"], {})
+        self.sync.assert_not_called()
+
+    def test_file_error_in_one_playlist_does_not_stop_the_rest(self):
+        def locked_file(url, music):
+            if url == A:
+                raise PermissionError(13, "The process cannot access the file", "01 - x.m4a")
+            return self.fake_sync(url, music)
+        self.sync.side_effect = locked_file
+        code, out, err = self.run_cli(A, B)
+        self.assertEqual(code, 1)
+        self.assertIn("cannot access", err)
+        self.assertIn("Mix B: 2 songs", out)
+
+    def test_tools_download_failing_says_so(self):
+        download.ensure_tools.side_effect = ConnectionError("no network")
+        code, _, err = self.run_cli(A)
+        self.assertEqual(code, 1)
+        self.assertIn("no network", err)
+        self.sync.assert_not_called()
 
     def test_fix_refuses_a_non_youtube_link(self):
         code, _, err = self.run_cli("fix", TRACK, "https://vimeo.com/123")

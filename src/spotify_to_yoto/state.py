@@ -67,16 +67,15 @@ def folder_for(music, name, playlist_url):
         return found
     folder = Path(music) / safe_name(name)
     if folder.exists() and any(folder.iterdir()):
-        # Another playlist with the same name, or the user's own folder: never share it.
-        folder = folder.with_name(f"{folder.name} ({playlist_url.rstrip('/').rsplit('/', 1)[-1][:6]})")
+        # Another playlist with the same name, or the user's own folder: never share it. The whole id, since
+        # Spotify's own playlists all start alike.
+        folder = folder.with_name(f"{folder.name} ({playlist_url.rstrip('/').rsplit('/', 1)[-1]})")
     return folder
 
 
-def find_song(music, track_url):
-    for folder in _folders(music):
-        if track_url in load(folder)["songs"]:
-            return folder
-    return None
+def find_songs(music, track_url):
+    """Every playlist folder that has the song."""
+    return [folder for folder in _folders(music) if track_url in load(folder)["songs"]]
 
 
 @contextlib.contextmanager

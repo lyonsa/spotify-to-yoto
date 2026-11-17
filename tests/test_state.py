@@ -43,8 +43,28 @@ class StateTest(unittest.TestCase):
 
     def test_same_name_different_playlist_gets_own_folder(self):
         self.save_playlist("Mix", A)
-        self.assertEqual(state.folder_for(self.music, "Mix", B), self.music / "Mix (BBBBBB)")
+        self.assertEqual(state.folder_for(self.music, "Mix", B), self.music / "Mix (BBBBBBBBbbbb)")
         self.assertEqual(state.folder_for(self.music, "Mix", A), self.music / "Mix")
+
+    def test_three_playlists_with_one_name_get_three_folders(self):
+        # Spotify's own playlists all start 37i9dQZF1D…
+        folders = []
+        for c in "abc":
+            folder = state.folder_for(self.music, "Mix", f"https://open.spotify.com/playlist/37i9dQZF1DX{c}")
+            folder.mkdir()
+            data = state.load(folder)
+            data["spotify"] = f"https://open.spotify.com/playlist/37i9dQZF1DX{c}"
+            state.save(folder, data)
+            folders.append(folder)
+        self.assertEqual(len(set(folders)), 3)
+
+    def test_find_songs_in_every_playlist(self):
+        a, b = self.save_playlist("Mix", A), self.save_playlist("Other", B)
+        for folder in (a, b):
+            data = state.load(folder)
+            data["songs"][SONG] = {"file": None, "position": 1, "match": None}
+            state.save(folder, data)
+        self.assertEqual(state.find_songs(self.music, SONG), [a, b])
 
     def test_new_playlist_gets_its_spotify_name(self):
         self.assertEqual(state.folder_for(self.music, "Road: Trip", A), self.music / "Road_ Trip")
@@ -60,8 +80,8 @@ class StateTest(unittest.TestCase):
         data = state.load(folder)
         data["songs"][SONG] = {"file": "01 - x.m4a", "position": 1, "match": None}
         state.save(folder, data)
-        self.assertEqual(state.find_song(self.music, SONG), folder)
-        self.assertIsNone(state.find_song(self.music, "https://open.spotify.com/track/zzz"))
+        self.assertEqual(state.find_songs(self.music, SONG), [folder])
+        self.assertEqual(state.find_songs(self.music, "https://open.spotify.com/track/zzz"), [])
 
     def test_music_folder_missing(self):
         self.assertIsNone(state.find_folder(self.music / "nope", A))

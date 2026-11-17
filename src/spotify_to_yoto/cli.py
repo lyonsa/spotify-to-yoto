@@ -5,16 +5,18 @@ import sys
 from pathlib import Path
 
 from spotdl.download.downloader import DownloaderError
+from spotdl.providers.audio.base import AudioProviderError
 
-from spotify_to_yoto import download, links, settings, spotify, state, sync
+from spotify_to_yoto import download, links, matcher, settings, spotify, state, sync
 from spotify_to_yoto.yoto import push
 from spotify_to_yoto.yoto.api import YotoError
 from spotify_to_yoto.yoto.auth import AuthError
 
 PROG = "spotify-to-yoto"
-# One playlist failing for any of these is told and skipped; the rest still run.
+# One playlist failing for any of these is told and skipped; the rest still run. OSError covers the network
+# (requests' errors are OSErrors) and files a player or virus scanner holds open on Windows.
 FAILURES = (links.LinkError, spotify.SpotifyFailure, state.LockedError, push.PushError, YotoError, AuthError,
-            DownloaderError)
+            DownloaderError, AudioProviderError, OSError)
 YOUTUBE = re.compile(r"^https?://(?:(?:www|m|music)\.)?(?:youtube\.com/watch\?(?:.*&)?v=|youtu\.be/)([\w-]+)")
 
 
@@ -49,7 +51,11 @@ def cmd_sync(argv):
     except links.LinkError as exc:
         _fail(exc)
         return 1
-    _start()
+    try:
+        _start()
+    except FAILURES as exc:
+        _fail(exc)
+        return 1
     failed, done = False, []
     for url in urls:
         try:
@@ -112,21 +118,32 @@ def cmd_fix(argv):
     except links.LinkError as exc:
         _fail(exc)
         return 1
-    folder = state.find_song(music, track)
-    if not folder:
+    folders = state.find_songs(music, track)
+    if not folders:
         _fail(f"{track} isn't in any playlist in {music}.")
         return 1
-    with state.locked(folder):
-        data = state.load(folder)
-        data["fixes"][track] = f"https://music.youtube.com/watch?v={m.group(1)}"
-        state.save(folder, data)
-    _start()
+    link = f"https://music.youtube.com/watch?v={m.group(1)}"
     try:
-        print(sync.sync(data["spotify"], music).report, flush=True)
+        _start()
+        matcher.Matcher().describe(link)  # a dead or private video is refused now, not on every later sync
+    except AudioProviderError as exc:
+        _fail(f"YouTube couldn't give {link}: {exc}. Try another link.")
+        return 1
     except FAILURES as exc:
         _fail(exc)
         return 1
-    return 0
+    failed = False
+    for folder in folders:  # the song may be in several playlists: fix it in each
+        try:
+            with state.locked(folder):
+                data = state.load(folder)
+                data["fixes"][track] = link
+                state.save(folder, data)
+            print(sync.sync(data["spotify"], music).report + "\n", flush=True)
+        except FAILURES as exc:
+            _fail(exc)
+            failed = True
+    return 1 if failed else 0
 
 
 def cmd_settings(argv):
