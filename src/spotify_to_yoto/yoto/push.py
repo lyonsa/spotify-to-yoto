@@ -157,5 +157,6 @@ def push(folder):
         if cover:
             payload["metadata"] = {"cover": {"imageL": cover}}
     data["yoto"] = save_card(payload)
+    data["pushed"] = state.snapshot(data)
     state.save(folder, data)
     return data["yoto"]

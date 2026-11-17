@@ -119,6 +119,17 @@ spotify-to-yoto fix https://open.spotify.com/track/… "https://music.youtube.co
 
 That downloads the new upload, keeps your choice for every later run, and prints the playlist's report again.
 
+## Check on your playlists
+
+```sh
+spotify-to-yoto status                        # every playlist, one line each
+spotify-to-yoto status "Road Trip Mix"        # one playlist's last report
+```
+
+`status` reads what the last sync and push left in each folder, so it's instant and asks nothing of Spotify or
+YouTube. For each playlist it says whether it's on Yoto and whether the Yoto copy is behind the folder, for example
+after a fix. One playlist's status shows its last report and when it was made; run the sync again for a fresh one.
+
 ## Put it on Yoto
 
 ```sh

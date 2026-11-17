@@ -3,6 +3,7 @@ the songs in Spotify's order, writes the .m3u8, and reports songs that may be wr
 """
 import collections
 import re
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -185,5 +186,9 @@ def sync(url, music, fetch=spotify.fetch, matcher=None, fetcher=download.Fetcher
         albums = {u: push.read_album(folder / data["songs"][u]["file"]) for u in lengths}
         fixed = {u for u, link in data["fixes"].items() if matches.get(u) and matches[u].url == link}
         problems = checks.find(playlist, matches, lengths, albums, fixed)
-        report = checks.report(state.title(folder, data), playlist, problems, push.check_limits(tracks))
-    return Result(folder, "\n".join([report] + notes))
+        report = "\n".join([checks.report(state.title(folder, data), playlist, problems, push.check_limits(tracks))]
+                           + notes)
+        # Kept for "status", which shows it without asking Spotify again.
+        data.update(report=report, synced=datetime.now().strftime("%Y-%m-%d %H:%M"), length=playlist.length)
+        state.save(folder, data)
+    return Result(folder, report)

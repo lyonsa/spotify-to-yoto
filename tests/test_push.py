@@ -186,6 +186,13 @@ class PushTest(unittest.TestCase):
         self.push()
         self.assertEqual(order[0], ("sign in", threading.main_thread()))
 
+    def test_push_records_what_it_sent(self):
+        self.remember(songs={"t1": {"file": "01 - a.m4a", "position": 1, "match": {"url": "yt1"}}})
+        self.push()
+        data = state.load(self.folder)
+        self.assertEqual(data["pushed"], [["01 - a.m4a", "yt1"]])
+        self.assertEqual(state.yoto_status(data), "up to date")
+
     def test_title_is_the_playlist_name_from_state(self):
         # The folder couldn't take the colon; Yoto can.
         self.folder = self.folder.with_name("Ari_ Mixtape")

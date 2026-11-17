@@ -86,6 +86,20 @@ class StateTest(unittest.TestCase):
     def test_music_folder_missing(self):
         self.assertIsNone(state.find_folder(self.music / "nope", A))
 
+    def test_yoto_status(self):
+        data = state.load(self.music)
+        data["songs"] = {"b": {"file": "02 - B.m4a", "position": 2, "match": {"url": "yt2"}},
+                         "a": {"file": "01 - A.m4a", "position": 1, "match": {"url": "yt1"}},
+                         "c": {"file": None, "position": 3, "match": None}}
+        self.assertEqual(state.snapshot(data), [["01 - A.m4a", "yt1"], ["02 - B.m4a", "yt2"]])
+        self.assertEqual(state.yoto_status(data), "not pushed")
+        data["yoto"] = "card"
+        self.assertEqual(state.yoto_status(data), "unknown")  # pushed before pushes were recorded
+        data["pushed"] = state.snapshot(data)
+        self.assertEqual(state.yoto_status(data), "up to date")
+        data["songs"]["a"]["match"] = {"url": "fixed"}  # a fix keeps the file name but changes the upload
+        self.assertEqual(state.yoto_status(data), "behind")
+
     def test_second_lock_is_refused(self):
         folder = self.music / "Mix"
         folder.mkdir()

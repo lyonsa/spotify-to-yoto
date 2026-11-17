@@ -204,6 +204,59 @@ class CliTest(unittest.TestCase):
         self.assertIn("(set)", out)
         self.assertIn(str(self.music), out)
 
+    def synced(self, url, report, **extra):
+        folder = self.fake_sync(url, self.music).folder
+        data = state.load(folder)
+        data.update(report=report, synced="2026-11-17 15:10", length=2, **extra)
+        state.save(folder, data)
+        return folder
+
+    def test_status_lists_every_playlist(self):
+        self.synced(A, "Mix A: 2 songs, all fine")
+        self.synced(B, "Mix B: 2 songs, 1 fine, 1 to look at\n  02 Missing: x", yoto="card")
+        (self.music / "Not a playlist").mkdir()
+        code, out, _ = self.run_cli("status")
+        self.assertEqual(code, 0)
+        self.assertEqual(out.splitlines(), [
+            'Mix A: 2 songs, all fine | not on Yoto yet: spotify-to-yoto push "Mix A"',
+            "Mix B: 2 songs, 1 fine, 1 to look at | on Yoto; known to be up to date after its next push",
+        ])
+        self.sync.reset_mock()
+
+    def test_status_of_one_playlist_prints_its_report(self):
+        folder = self.synced(B, "Mix B: 2 songs, 1 fine, 1 to look at\n  02 Missing: x", yoto="card", pushed=[])
+        data = state.load(folder)
+        data["songs"]["t"] = {"file": "01 - x.m4a", "position": 1, "match": {"url": "yt"}}
+        state.save(folder, data)
+        self.sync.reset_mock()
+        for arg in ["Mix B", B + "?si=1", str(folder)]:
+            code, out, _ = self.run_cli("status", arg)
+            self.assertEqual(code, 0)
+            self.assertEqual(out.splitlines(), [
+                "Mix B: 2 songs, 1 fine, 1 to look at",
+                "  02 Missing: x",
+                "Report from 2026-11-17 15:10. Run the sync again for a fresh one.",
+                'On Yoto, but behind the folder: spotify-to-yoto push "Mix B"',
+            ])
+        self.sync.assert_not_called()
+        spotify.connect.assert_not_called()
+
+    def test_status_before_any_report(self):
+        self.fake_sync(A, self.music)
+        code, out, _ = self.run_cli("status", "Mix A")
+        self.assertEqual(code, 0)
+        self.assertIn(f"No report yet. Sync it: spotify-to-yoto {A}", out)
+
+    def test_status_of_unknown_playlist(self):
+        code, _, err = self.run_cli("status", "Nope")
+        self.assertEqual(code, 1)
+        self.assertIn("Nope", err)
+
+    def test_status_with_no_playlists(self):
+        code, out, _ = self.run_cli("status")
+        self.assertEqual(code, 0)
+        self.assertIn("No playlists", out)
+
     def test_no_links_shows_usage(self):
         code, _, err = self.run_cli()
         self.assertNotEqual(code, 0)

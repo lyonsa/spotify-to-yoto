@@ -53,6 +53,27 @@ def _folders(music):
     return sorted(p for p in music.iterdir() if p.is_dir() and (p / STATE).exists())
 
 
+def playlists(music):
+    """Every playlist folder in the music folder."""
+    return _folders(music)
+
+
+def snapshot(data):
+    """What a push sends, to tell later whether Yoto is behind: each file in order and the upload it came from
+    (a fix keeps the file's name but changes the upload)."""
+    entries = sorted((e for e in data["songs"].values() if e.get("file")), key=lambda e: e["position"])
+    return [[e["file"], (e.get("match") or {}).get("url")] for e in entries]
+
+
+def yoto_status(data):
+    """"not pushed", "unknown" (pushed before pushes were recorded), "up to date" or "behind"."""
+    if not data.get("yoto"):
+        return "not pushed"
+    if data.get("pushed") is None:
+        return "unknown"
+    return "up to date" if data["pushed"] == snapshot(data) else "behind"
+
+
 def find_folder(music, playlist_url):
     for folder in _folders(music):
         if load(folder)["spotify"] == playlist_url:

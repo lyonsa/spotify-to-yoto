@@ -94,6 +94,13 @@ class SyncTest(unittest.TestCase):
         self.assertEqual(data["songs"]["https://open.spotify.com/track/t2"]["file"], "02 - A - Song 2.m4a")
         self.assertEqual(result.report, "Mix: 2 songs, all fine")
 
+    def test_report_is_saved_with_its_time(self):
+        result = self.run_sync([song(1), song(2)], length=3)
+        data = state.load(result.folder)
+        self.assertEqual(data["report"], result.report)
+        self.assertEqual(data["length"], 3)
+        self.assertRegex(data["synced"], r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$")
+
     def test_second_sync_downloads_nothing(self):
         self.run_sync([song(1), song(2)])
         FakeFetcher.asked, self.matcher.found = [], []

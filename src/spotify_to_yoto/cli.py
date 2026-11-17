@@ -40,7 +40,7 @@ def _start():
 def cmd_sync(argv):
     parser = argparse.ArgumentParser(
         prog=PROG, description="Download Spotify playlists from YouTube Music, check the matches, and put them on "
-                               "Yoto. Other commands: push, fix, settings (add --help to any).")
+                               "Yoto. Other commands: push, fix, status, settings (add --help to any).")
     parser.add_argument("links", nargs="+", help="Spotify playlist links, or text files with one link a line")
     parser.add_argument("--push", action="store_true", help="put each playlist on Yoto straight after its download")
     parser.add_argument("--music", help="the folder that holds one folder per playlist, for this run")
@@ -146,6 +146,53 @@ def cmd_fix(argv):
     return 1 if failed else 0
 
 
+def _on_yoto(folder, data):
+    status = state.yoto_status(data)
+    push_it = f'{PROG} push "{folder.name}"'
+    return {"not pushed": f"not on Yoto yet: {push_it}",
+            "unknown": "on Yoto; known to be up to date after its next push",
+            "up to date": "on Yoto, up to date",
+            "behind": f"on Yoto, but behind the folder: {push_it}"}[status]
+
+
+def cmd_status(argv):
+    parser = argparse.ArgumentParser(prog=f"{PROG} status",
+                                     description="Show each playlist's last report and whether Yoto is up to date, "
+                                                 "without asking Spotify or YouTube.")
+    parser.add_argument("playlists", nargs="*", help="Spotify playlist links, or folder names or paths; none for all")
+    parser.add_argument("--music", help="the folder that holds one folder per playlist, for this run")
+    args = parser.parse_args(argv)
+    music = settings.music(args.music)
+    if not args.playlists:
+        folders = state.playlists(music)
+        if not folders:
+            print(f"No playlists in {music} yet.")
+        for folder in folders:
+            data = state.load(folder)
+            head = (data.get("report") or f"{state.title(folder, data)}: no report yet").splitlines()[0]
+            print(f"{head} | {_on_yoto(folder, data)}")
+        return 0
+    failed = False
+    for arg in args.playlists:
+        try:
+            folder = _folder(arg, music)
+            if not (folder / state.STATE).exists():
+                raise push.PushError(f'No playlist "{folder.name}" in {music}.')
+        except FAILURES as exc:
+            _fail(exc)
+            failed = True
+            continue
+        data = state.load(folder)
+        if data.get("report"):
+            print(data["report"])
+            print(f"Report from {data['synced']}. Run the sync again for a fresh one.")
+        else:
+            print(f"No report yet. Sync it: {PROG} {data['spotify']}")
+        on_yoto = _on_yoto(folder, data)
+        print(on_yoto[0].upper() + on_yoto[1:])
+    return 1 if failed else 0
+
+
 def cmd_settings(argv):
     parser = argparse.ArgumentParser(prog=f"{PROG} settings", description="Show or change the settings.")
     parser.add_argument("--music", help="the folder that holds one folder per playlist")
@@ -168,7 +215,7 @@ def cmd_settings(argv):
     return 0
 
 
-COMMANDS = {"push": cmd_push, "fix": cmd_fix, "settings": cmd_settings}
+COMMANDS = {"push": cmd_push, "fix": cmd_fix, "status": cmd_status, "settings": cmd_settings}
 
 
 def main(argv):
