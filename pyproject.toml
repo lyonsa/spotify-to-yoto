@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "spotify-to-yoto"
+version = "0.1.0"
+description = "Turn Spotify playlists into music files from YouTube Music, check the matches, and put them on Yoto."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Allen Lyons" }]
+requires-python = ">=3.11,<3.16"
+dependencies = [
+    "spotdl==4.6.0",
+    "keyring>=25",
+    "platformdirs>=4.3",
+    "mutagen>=1.47",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.scripts]
+spotify-to-yoto = "spotify_to_yoto.cli:run"
+
+[project.urls]
+Homepage = "https://github.com/lyonsa/spotify-to-yoto"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/spotify_to_yoto"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
