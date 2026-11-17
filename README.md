@@ -55,7 +55,7 @@ this, so when a sign-in runs out, a push opens the browser again.
 ## Download a playlist
 
 ```sh
-spotify-to-yoto "https://open.spotify.com/playlist/1A2b3C4d5E6f7G8h9I0jKl?si=…"
+spotify-to-yoto "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=…"
 ```
 
 Put each link in quotes: links copied from Spotify and YouTube have a `?` in them, which the Mac's shell would
