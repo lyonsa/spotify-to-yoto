@@ -24,6 +24,9 @@ uv tool install git+https://github.com/lyonsa/spotify-to-yoto
 uv fetches a suitable Python for it. (Or use pipx with Python 3.11 to 3.15: `pipx install
 git+https://github.com/lyonsa/spotify-to-yoto`.)
 
+If your shell then says `spotify-to-yoto: command not found`, run `uv tool update-shell` once and open a new
+terminal: uv puts the command in a folder (`~/.local/bin`) your shell may not look in yet.
+
 The first run downloads ffmpeg and Deno, which the downloads need, into spotDL's own folder.
 
 YouTube changes often, and downloads then start to fail. The fix is usually a newer yt-dlp:
@@ -59,18 +62,27 @@ spotify-to-yoto "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=…
 ```
 
 Put each link in quotes: links copied from Spotify and YouTube have a `?` in them, which the Mac's shell would
-otherwise read as a file pattern ("no matches found").
+otherwise read as a file pattern ("no matches found"). On a Mac you can skip the quotes for `?` with this line in
+`~/.zshrc`, though a link with `&` in it still needs them:
+
+```sh
+alias spotify-to-yoto="noglob spotify-to-yoto"
+```
 
 Give it one link, several, or a text file with one link a line (lines starting with `#` are skipped). The playlist
 must be public on Spotify.
 
 Each playlist gets a folder named after it, inside your music folder (`~/Music/spotify-to-yoto` unless you change
 it). The songs are named `07 - Artist - Title.m4a`, numbered in the playlist's order, and a `<playlist>.m3u8` sits
-beside the folder.
+beside the folder. Two songs with the same artist and title (say, one from the album and one from a single) get
+their own files: the second is `… (2).m4a`.
 
 Run it again with the same link to bring the folder up to date: it downloads new songs, deletes songs taken off the
 playlist, and renumbers if the order changed. Songs it already has aren't downloaded again. You can rename a
-playlist's folder; it's still found, and the Yoto playlist takes your name.
+playlist's folder, or move it to another music folder; it's still found, and the Yoto playlist takes your name.
+
+Spotify sometimes leaves a song out of the list it sends, though the song is still in the playlist. When its list
+is short of the playlist's song count, nothing is deleted that run, and the report says so.
 
 To keep the music somewhere else:
 
@@ -103,12 +115,15 @@ Road Trip Mix: 41 songs, 39 fine, 2 to look at
 | Couldn't download | A file of your own on Spotify, or a song no longer on Spotify. Nothing to download. |
 | Missing | YouTube Music has no matching song upload, or the download failed. A later run tries again. |
 | Explicit in place of clean | The Spotify song is the clean version, and YouTube Music's is marked explicit. |
-| Wrong version | YouTube's title has a word Spotify's doesn't: live, remix, karaoke, instrumental, cover, sped up, slowed or acoustic. |
-| Wrong artist | None of YouTube's artists match Spotify's. |
+| Wrong version | YouTube's title has a word that neither Spotify's title nor its album has: live, remix, karaoke, instrumental, cover, sped up, slowed or acoustic. (A live song from a live album isn't flagged.) |
+| Wrong artist | None of YouTube's artists match Spotify's. A name inside another counts as a match ("Joan Jett" for "Joan Jett & the Blackhearts"). |
 | Same upload as another song | Two songs matched one upload, so one of them is wrong. |
 | Cut-off file | The file is much shorter than the upload: the download broke off. |
 | Length doesn't match Spotify's | More than 3 seconds longer or shorter than Spotify's song. |
 | From a video, not an album track | The upload isn't from an album, so it may be a music video with extra sound. |
+
+The explicit check only catches an explicit upload standing in for a clean song. A song Spotify itself marks
+explicit is what the playlist asked for, so it isn't flagged: look over the playlist on Spotify if that matters.
 
 Listen to the link. If it's wrong, find the right song on [YouTube Music](https://music.youtube.com) (or YouTube),
 copy its link, and run the line the report gives, with the link inside the quotes:
@@ -117,7 +132,13 @@ copy its link, and run the line the report gives, with the link inside the quote
 spotify-to-yoto fix https://open.spotify.com/track/… "https://music.youtube.com/watch?v=…"
 ```
 
-That downloads the new upload, keeps your choice for every later run, and prints the playlist's report again.
+That downloads the new upload, keeps your choice for every later run, and prints the playlist's report again. If the
+song is in several of your playlists, it's fixed in each. A link YouTube won't play (gone, private or blocked where
+you are) is refused before anything changes.
+
+You chose that upload by ear, so from then on the report only checks it for a broken download: it isn't flagged
+for its title, artist, length or for being a video. A song with no match at all, such as a recording only on
+Spotify, can be fixed the same way with any upload you're happy with.
 
 ## Check on your playlists
 
@@ -139,9 +160,12 @@ spotify-to-yoto push "Road Trip Mix"
 Give the folder's name, the folder itself (drag it into the terminal), or the playlist's Spotify link; several at
 once is fine. To download and push in one go, add `--push` to the download command; the report still prints first.
 
-The first push makes a playlist named after the folder, with the Spotify playlist's cover and Yoto's default track
-icons. Link it to a card in the Yoto app. Pushing again updates the same playlist: it keeps whatever cover the
-playlist has by then, so a cover you set in the Yoto app stays. Yoto skips songs it already has.
+The first push makes a playlist with the Spotify playlist's name (or your name for its folder, if you renamed it),
+the Spotify playlist's cover, and Yoto's default track icons. Its chapters are numbered 1, 2, 3… in order, with no
+gaps for songs that couldn't be downloaded. Link it to a card in the Yoto app. Pushing again updates the same
+playlist: it keeps whatever cover the playlist has by then, so a cover you set in the Yoto app stays. Yoto skips
+songs it already has. After a fix or a sync that changed songs, `status` shows the playlist as behind until you push
+again.
 
 It never deletes anything on Yoto. It stops before uploading if a playlist is over Yoto's limits for a Make Your Own
 card: 100 tracks; 100 MB and 60 minutes a track; 500 MB and 5 hours in all.
@@ -166,9 +190,22 @@ spotify-to-yoto settings --spotify-client-id <id> --spotify-client-secret <secre
 | What | Where |
 | --- | --- |
 | The songs | Your music folder, one folder per playlist |
-| What each playlist remembers (its link, matches, your fixes, its Yoto playlist) | `.spotify-to-yoto.json` inside its folder |
-| Settings | `spotify-to-yoto settings` with no options shows them; the file is `settings.json` in your user settings folder |
-| The Yoto sign-in | Your system's keyring (Keychain, Credential Manager or Secret Service), or a private file beside the settings where there's none |
+| What each playlist remembers (its link, matches, your fixes, its last report, its Yoto playlist and what was last pushed) | `.spotify-to-yoto.json` inside its folder |
+| Settings (music folder, Yoto client ID, your own Spotify keys) | `settings.json`, readable only by you: `~/Library/Application Support/spotify-to-yoto/` on a Mac, `~/.config/spotify-to-yoto/` on Linux, `%LOCALAPPDATA%\spotify-to-yoto\spotify-to-yoto\` on Windows. `spotify-to-yoto settings` shows them. |
+| The Yoto sign-in | Your system's keyring (Keychain, Credential Manager or Secret Service), or a private file beside the settings where there's none or it refuses |
+
+## When something goes wrong
+
+| You see | What to do |
+| --- | --- |
+| `no matches found` (Mac) | Put the link in quotes. |
+| `command not found: spotify-to-yoto` | Run `uv tool update-shell` and open a new terminal. |
+| Downloads failing, `YT-DLP download error` on many songs | YouTube changed something: `uv tool upgrade spotify-to-yoto`. A few failures are normal; the next run tries them again. |
+| `Failed to fetch secrets … Falling back to default secret` | Harmless while it carries on. The Spotify reader fetches a key from a volunteer's site, which was slow; reads take longer until it's back. |
+| `Couldn't read … from Spotify … The playlist must be public` | Make the playlist public, or check the link. If it keeps happening on every playlist, try again later, or set your own Spotify keys. |
+| `Another run is using …` | Wait for the other run. If none is running (one was stopped hard), delete the `.spotify-to-yoto.lock` folder it names. |
+| The browser opens to sign in to Yoto again | Expected: Yoto's sign-in for apps like this runs out, and there's no long-lived one. |
+| `Over Yoto's limits` | Split the playlist on Spotify, or remove songs: 100 tracks; 100 MB and 60 minutes a track; 500 MB and 5 hours in all. |
 
 ## Credits
 
