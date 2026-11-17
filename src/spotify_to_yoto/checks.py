@@ -1,7 +1,8 @@
 """The report after a sync: songs that may be the wrong upload, each under the first problem it has."""
 import collections
 import re
-import unicodedata
+
+from spotify_to_yoto.matcher import same_artist
 
 Problem = collections.namedtuple("Problem", "kind position song match detail")
 
@@ -22,18 +23,8 @@ CUT_OFF = 10  # seconds short of YouTube's own length that mean the download bro
 FIX = "spotify-to-yoto fix {track} <YouTube link>"
 
 
-def _name(text):
-    text = unicodedata.normalize("NFKC", text or "").casefold().strip()
-    text = re.sub(r"\s+-\s+topic$", "", text)  # YouTube's auto-made artist channels: "Aimer - Topic"
-    return " ".join(re.sub(r"[^\w\s]", " ", text).split())
-
-
 def _same_artist(song, match):
-    theirs = [n for n in map(_name, list(match.artists) + [match.channel]) if n]
-    if not theirs:
-        return True  # YouTube named no one: nothing to compare
-    ours = [n for n in map(_name, song.artists) if n]
-    return any(a == b or a in b or b in a for a in ours for b in theirs)
+    return same_artist(song.artists, list(match.artists) + [match.channel])
 
 
 def _version_word(song, match):

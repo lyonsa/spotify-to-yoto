@@ -50,6 +50,35 @@ class MatcherTest(unittest.TestCase):
         self.results([result(verified=False)])
         self.assertIsNone(matcher.Matcher().find(song()))
 
+    def test_falls_back_to_same_song_under_a_longer_artist_name(self):
+        # Without an ISRC, spotDL's ranking rejects "Joan Jett" for "Joan Jett & the Blackhearts".
+        jett = song(name="Bad Reputation", artists=["Joan Jett & the Blackhearts"], artist="Joan Jett & the Blackhearts",
+                    duration=169, album_name=None)
+        self.results([
+            result(url="https://music.youtube.com/watch?v=cover", name="Bad Reputation (Cover Version)",
+                   artists=("Mikey And His Uke",), duration=193.0, result_id="cover"),
+            result(url="https://music.youtube.com/watch?v=LfCm57XdpO0", name="Bad Reputation", artists=("Joan Jett",),
+                   album="Bad Reputation (Expanded Edition)", duration=170.0, result_id="LfCm57XdpO0",
+                   explicit=False)])
+        found = matcher.Matcher().find(jett)
+        self.assertEqual(found.url, "https://music.youtube.com/watch?v=LfCm57XdpO0")
+        self.assertEqual(found.album, "Bad Reputation (Expanded Edition)")
+
+    def test_fallback_refuses_another_length_or_title(self):
+        jett = song(name="Bad Reputation", artists=["Joan Jett & the Blackhearts"], duration=169, album_name=None)
+        self.results([
+            result(name="Bad Reputation (Live)", artists=("Joan Jett",), duration=170.0),
+            result(url="https://music.youtube.com/watch?v=long", name="Bad Reputation", artists=("Joan Jett",),
+                   duration=200.0, result_id="long"),
+            result(url="https://music.youtube.com/watch?v=other", name="Bad Reputation", artists=("Someone",),
+                   duration=169.0, result_id="other")])
+        self.assertIsNone(matcher.Matcher().find(jett))
+
+    def test_plain_names(self):
+        self.assertEqual(matcher.plain("Respect - 2021 Remaster"), matcher.plain("Respect (2021 Remaster)"))
+        self.assertEqual(matcher.plain("Aimer - Topic"), "aimer")
+        self.assertEqual(matcher.plain("ＹＯＡＳＯＢＩ"), "yoasobi")
+
     def test_describe_maps_yt_dlp_fields(self):
         info = {"title": "Kataomoi (Official Video)", "track": "Kataomoi", "artists": ["Aimer"], "channel": "Aimer",
                 "album": None, "duration": 270}
