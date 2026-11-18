@@ -77,7 +77,7 @@ class AskTest(unittest.TestCase):
     def test_other_browser(self):
         with mock.patch.object(youtube, "find_other", return_value=Path("/A/Dia/User Data")):
             config = self.ask("yes", "3", "Dia")
-        self.assertEqual(config, {"browser": "dia", "dir": "/A/Dia/User Data", "keyring": "Dia"})
+        self.assertEqual(config, {"browser": "dia", "dir": str(Path("/A/Dia/User Data")), "keyring": "Dia"})
 
     def test_other_browser_not_found_asks_for_its_folder(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(youtube, "find_other", return_value=None):
