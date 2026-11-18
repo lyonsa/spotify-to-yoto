@@ -1,5 +1,8 @@
 name: tests
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]  # a PR's pushes are tested once, as the pull request
+  pull_request:
 jobs:
   test:
     strategy:
