@@ -268,8 +268,19 @@ class SyncTest(unittest.TestCase):
         download.use_sign_in({"browser": "chrome"})
         self.addCleanup(download.use_sign_in, None)
         self.kbps = {".download-2.m4a": 128, "02 - A - Song 2.m4a": 128}
-        report = self.run_sync([song(1), song(2)]).report
-        self.assertIn("YouTube Premium is on, but 1 song came in at 128 kbps", report)
+        with mock.patch.object(download, "sign_in_works", return_value=False):
+            report = self.run_sync([song(1), song(2)]).report
+        self.assertIn("YouTube Premium is on, but 1 song came in at 128 kbps. Check you're still signed in", report)
+
+    def test_upload_without_a_premium_stream_is_named_not_blamed_on_the_sign_in(self):
+        # Some uploads, such as a video picked with "fix", only come at 128 kbps, even with Premium.
+        download.use_sign_in({"browser": "chrome"})
+        self.addCleanup(download.use_sign_in, None)
+        self.kbps = {".download-2.m4a": 128, "02 - A - Song 2.m4a": 128}
+        with mock.patch.object(download, "sign_in_works", return_value=True):
+            report = self.run_sync([song(1), song(2)]).report
+        self.assertIn("  02 At 128 kbps: YouTube has no Premium stream for this upload.", report)
+        self.assertNotIn("signed in", report)
 
     def test_no_premium_note_without_premium(self):
         download.use_sign_in(False)

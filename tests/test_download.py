@@ -62,6 +62,15 @@ class FetcherTest(unittest.TestCase):
         self.assertNotIn("yt_dlp_args", FakeDownloader.made[1].settings)
         self.assertFalse(download.premium())
 
+    def test_sign_in_works_asks_youtube_for_the_premium_stream(self):
+        download.use_sign_in({"browser": "chrome"})
+        self.addCleanup(download.use_sign_in, None)
+        with mock.patch.object(download.youtube, "has_premium", return_value=True) as has:
+            self.assertTrue(download.sign_in_works())
+        has.assert_called_once_with({"browser": "chrome"})
+        with mock.patch.object(download.youtube, "has_premium", side_effect=download.youtube.SignInError("x")):
+            self.assertFalse(download.sign_in_works())
+
     def test_fetcher_retries_dropped_downloads_once(self):
         got = download.Fetcher(self.folder).get([song("u/aaaaa"), song("u/flaky"), song("u/gone")])
         self.assertEqual(FakeDownloader.made[0].calls, [["u/aaaaa", "u/flaky", "u/gone"], ["u/flaky", "u/gone"]])

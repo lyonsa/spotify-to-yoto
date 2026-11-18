@@ -105,7 +105,8 @@ The first time you sync or fix in a terminal, it asks once whether you have Prem
 
 From then on, each download reads your sign-in from that browser, so it stays current while you're signed in there.
 Nothing of your sign-in is saved: only which browser to read it from. If a download still comes in at 128 kbps, the
-report says so.
+report says so. Some uploads only come at 128 kbps, even with Premium: often a video you picked with `fix` rather
+than a YouTube Music song. The report names those songs.
 
 ```sh
 spotify-to-yoto settings --youtube-premium      # set it up again, or change browser
@@ -237,6 +238,7 @@ spotify-to-yoto settings --spotify-client-id <id> --spotify-client-secret <secre
 | `Couldn't read … from Spotify … The playlist must be public` | Make the playlist public, or check the link. If it keeps happening on every playlist, try again later, or set your own Spotify keys. |
 | `Another run is using …` | Wait for the other run. If none is running (one was stopped hard), delete the `.spotify-to-yoto.lock` folder it names. |
 | `YouTube Premium is on, but … came in at 128 kbps` | Sign in to YouTube again in the browser you chose, then `spotify-to-yoto --redownload "<playlist link>"`. |
+| `At 128 kbps: YouTube has no Premium stream for this upload` | Nothing is wrong with your sign-in. For 256 kbps, find the song on YouTube Music and `fix` the song with that link. |
 | `Couldn't read the browser's sign-in` | On a Mac, allow the Keychain prompt (or give your terminal Full Disk Access for Safari), then `spotify-to-yoto settings --youtube-premium`. |
 | The browser opens to sign in to Yoto again | Expected: Yoto's sign-in for apps like this runs out, and there's no long-lived one. |
 | `Over Yoto's limits` | Split the playlist on Spotify, or remove songs: 100 tracks; 100 MB and 60 minutes a track; 500 MB and 5 hours in all. |

@@ -168,14 +168,18 @@ def _remove_gone(playlist, data, folder, notes):
 
 
 def _premium_note(data, folder, got):
-    """A line for the report when YouTube Premium is on but downloads still came in at the free bitrate."""
+    """Lines for the report when YouTube Premium is on but downloads still came in at the free bitrate: either the
+    sign-in stopped working, or those uploads (a video picked with "fix", say) have no Premium stream."""
     if not download.premium():
         return []
     low = [u for u in got if (push.read_kbps(folder / data["songs"][u]["file"]) or 999) < youtube.PREMIUM_KBPS]
     if not low:
         return []
-    return [f"  YouTube Premium is on, but {len(low)} song{'s' if len(low) > 1 else ''} came in at 128 kbps. Check "
-            "you're still signed in to YouTube in your browser."]
+    if not download.sign_in_works():
+        return [f"  YouTube Premium is on, but {len(low)} song{'s' if len(low) > 1 else ''} came in at 128 kbps. "
+                "Check you're still signed in to YouTube in your browser."]
+    files = sorted(data["songs"][u]["file"] for u in low)
+    return [f"  {f.split(' - ')[0]} At 128 kbps: YouTube has no Premium stream for this upload." for f in files]
 
 
 def sync(url, music, fetch=spotify.fetch, matcher=None, fetcher=download.Fetcher, redownload=False):

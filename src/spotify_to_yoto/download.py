@@ -6,18 +6,28 @@ from spotdl.utils.ffmpeg import download_ffmpeg, is_ffmpeg_installed
 from spotify_to_yoto import youtube
 
 _sign_in = None  # yt-dlp's option to read the YouTube sign-in, when YouTube Premium is on
+_browser = None  # the youtube.ask() answer it came from
 
 
 def use_sign_in(config):
     """Downloads from now on read the YouTube sign-in from this browser (a youtube.ask() answer); False or None
     for none."""
-    global _sign_in
+    global _sign_in, _browser
     youtube.register(config)
     _sign_in = youtube.yt_dlp_args(config)
+    _browser = config or None
 
 
 def premium():
     return _sign_in is not None
+
+
+def sign_in_works():
+    """Whether YouTube still gives the sign-in its Premium stream."""
+    try:
+        return bool(_browser) and youtube.has_premium(_browser)
+    except youtube.SignInError:
+        return False
 
 
 def ensure_tools():
